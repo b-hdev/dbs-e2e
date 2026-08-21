@@ -9,6 +9,7 @@ const envSchema = z.object({
 
   AI_API_KEY: z.string(),
   AI_MODEL: z.string().default("qwen3-30b-a3b-fp8"),
+  AI_URL_WORKER: z.url(),
 });
 
 const _env = envSchema.safeParse(process.env);

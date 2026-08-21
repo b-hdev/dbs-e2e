@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { getClienteByCpfCnpj } from '../services/ixc.services.ts';
+import { getClienteByCpfCnpj } from '../services/ixc-get-client.services.ts';
 
 export interface IIdentificar {
   cpfCnpj: string;
