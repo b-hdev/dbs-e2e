@@ -1,85 +1,226 @@
-import * as Device from 'expo-device';
-import { Platform, StyleSheet } from 'react-native';
+import React from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  ScrollView,
+  Image,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-
-import { AnimatedIcon } from '@/components/animated-icon';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { WebBadge } from '@/components/web-badge';
-import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
-
-function getDevMenuHint() {
-  if (Platform.OS === 'web') {
-    return <ThemedText type="small">use browser devtools</ThemedText>;
-  }
-  if (Device.isDevice) {
-    return (
-      <ThemedText type="small">
-        shake device or press <ThemedText type="code">m</ThemedText> in terminal
-      </ThemedText>
-    );
-  }
-  const shortcut = Platform.OS === 'android' ? 'cmd+m (or ctrl+m)' : 'cmd+d';
-  return (
-    <ThemedText type="small">
-      press <ThemedText type="code">{shortcut}</ThemedText>
-    </ThemedText>
-  );
-}
+import { useRouter } from 'expo-router';
+import { Colors, Spacing } from '@/constants/theme';
 
 export default function HomeScreen() {
+  const router = useRouter();
+
   return (
-    <ThemedView style={styles.container}>
-      <SafeAreaView style={styles.safeArea}>
-        <ThemedView style={styles.heroSection}>
-          <AnimatedIcon />
-          <ThemedText type="title" style={styles.title}>
-            Welcome to&nbsp;DBS
-          </ThemedText>
-        </ThemedView>
+    <SafeAreaView style={styles.safeArea}>
+      <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
+        <View style={styles.logoWrapper}>
+          <Image
+            source={require('../../assets/images/dbs/logodbs-sem-fundo.png')}
+            style={styles.logoImage}
+            resizeMode="contain"
+          />
+        </View>
 
-        <ThemedText type="code" style={styles.code}>
-          Vamos começar?
-        </ThemedText>
+        {/* Card Principal */}
+        <View style={styles.heroCard}>
+          <View style={styles.statusIndicator}>
+            <View style={styles.statusDot} />
+            <Text style={styles.statusText}>Autoatendimento Inteligente</Text>
+          </View>
 
-        {Platform.OS === 'web' && <WebBadge />}
-      </SafeAreaView>
-    </ThemedView>
+          <Text style={styles.heroTitle}>Como podemos ajudar você hoje?</Text>
+          <Text style={styles.heroDescription}>
+            Identifique-se com seu CPF ou CNPJ para consultar faturas, diagnosticar problems de conexão ou solicitar novos planos.
+          </Text>
+
+          <TouchableOpacity
+            style={styles.primaryButton}
+            onPress={() => router.push('/identify' as any)}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.primaryButtonText}>Iniciar Atendimento</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Serviços Rápidos */}
+        <Text style={styles.sectionTitle}>Serviços Disponíveis</Text>
+
+        <View style={styles.grid}>
+          <TouchableOpacity
+            style={styles.serviceCard}
+            onPress={() => router.push('/identify' as any)}
+            activeOpacity={0.7}
+          >
+            <View style={styles.iconCircle}>
+              <Text style={{ fontSize: 22 }}>⚡</Text>
+            </View>
+            <View style={styles.serviceContent}>
+              <Text style={styles.serviceTitle}>Suporte e Conexão</Text>
+              <Text style={styles.serviceDesc}>Diagnóstico de lentidão e sinal N1</Text>
+            </View>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.serviceCard}
+            onPress={() => router.push('/identify' as any)}
+            activeOpacity={0.7}
+          >
+            <View style={styles.iconCircle}>
+              <Text style={{ fontSize: 22 }}>📄</Text>
+            </View>
+            <View style={styles.serviceContent}>
+              <Text style={styles.serviceTitle}>2ª Via de Fatura</Text>
+              <Text style={styles.serviceDesc}>Consulta de boleto, código de barras e PIX</Text>
+            </View>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.serviceCard}
+            onPress={() => router.push('/identify' as any)}
+            activeOpacity={0.7}
+          >
+            <View style={styles.iconCircle}>
+              <Text style={{ fontSize: 22 }}>🚀</Text>
+            </View>
+            <View style={styles.serviceContent}>
+              <Text style={styles.serviceTitle}>Planos de Internet</Text>
+              <Text style={styles.serviceDesc}>Planos com Wi-Fi 6 e ultravelocidade</Text>
+            </View>
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.footer}>
+          <Text style={styles.footerText}>DBS TELECOM — Todos os direitos reservados</Text>
+        </View>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    justifyContent: 'center',
-    flexDirection: 'row',
-  },
   safeArea: {
     flex: 1,
-    paddingHorizontal: Spacing.four,
-    alignItems: 'center',
-    gap: Spacing.three,
-    paddingBottom: BottomTabInset + Spacing.three,
-    maxWidth: MaxContentWidth,
+    backgroundColor: Colors.background,
   },
-  heroSection: {
+  container: {
+    padding: Spacing.md,
+    paddingTop: Spacing.lg,
+  },
+  logoWrapper: {
     alignItems: 'center',
     justifyContent: 'center',
+    paddingVertical: Spacing.lg,
+    marginBottom: Spacing.xs,
+  },
+  logoImage: {
+    width: 220,
+    height: 60,
+  },
+  heroCard: {
+    backgroundColor: Colors.backgroundAlt,
+    borderRadius: 16,
+    padding: Spacing.lg,
+    marginBottom: Spacing.lg,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  statusIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: Spacing.xs,
+  },
+  statusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: Colors.success,
+    marginRight: 6,
+  },
+  statusText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: Colors.textSecondary,
+    letterSpacing: 0.2,
+  },
+  heroTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: Colors.text,
+    marginTop: 4,
+    marginBottom: Spacing.xs,
+    letterSpacing: -0.3,
+  },
+  heroDescription: {
+    fontSize: 14,
+    color: Colors.textSecondary,
+    lineHeight: 20,
+    marginBottom: Spacing.lg,
+  },
+  primaryButton: {
+    backgroundColor: Colors.primary,
+    borderRadius: 10,
+    paddingVertical: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  primaryButtonText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: Colors.text,
+    marginBottom: Spacing.sm,
+    letterSpacing: -0.2,
+  },
+  grid: {
+    gap: Spacing.sm,
+  },
+  serviceCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: Spacing.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  iconCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: Colors.primaryLight,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: Spacing.md,
+  },
+  serviceContent: {
     flex: 1,
-    paddingHorizontal: Spacing.four,
-    gap: Spacing.four,
   },
-  title: {
-    textAlign: 'center',
+  serviceTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.text,
   },
-  code: {
-    textTransform: 'uppercase',
+  serviceDesc: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+    marginTop: 2,
   },
-  stepContainer: {
-    gap: Spacing.three,
-    alignSelf: 'stretch',
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.four,
-    borderRadius: Spacing.four,
+  footer: {
+    alignItems: 'center',
+    marginTop: Spacing.xl,
+    paddingBottom: Spacing.md,
+  },
+  footerText: {
+    fontSize: 12,
+    color: Colors.textSecondary,
   },
 });

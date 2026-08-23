@@ -2,6 +2,9 @@ import axios from 'axios';
 import { env } from '../env/index.ts';
 import { agentConfig } from '../utils/agent-config.ts';
 import type { Workflow, WorkflowStep, FewShotExample, ToolSchema } from '../utils/agent-config.ts';
+import { Logger } from '../utils/logger.ts';
+
+const logger = new Logger(undefined, 'ai-service');
 
 export interface AIChatMessage {
   role: 'system' | 'user' | 'assistant';
@@ -38,18 +41,21 @@ export class AIService {
 
   async classificarAtendimento(
     contexto: ClienteContexto,
-    mensagem: string
+    mensagem: string,
+    historico: AIChatMessage[] = []
   ): Promise<AIClassificationResponse> {
 
     const promptSistema = this.montarPromptSistema(contexto);
 
+    // Monta a lista de mensagens: system prompt + histórico anterior + mensagem atual
     const messages: AIChatMessage[] = [
       { role: 'system', content: promptSistema },
+      ...historico,
       { role: 'user', content: `Nome do cliente: ${contexto.nomeCliente}. Mensagem: "${mensagem}"` }
     ];
 
     try {
-      console.log(`[AI] Iniciando classificação para o cliente: ${contexto.nomeCliente}`);
+      logger.info(`Iniciando classificação para o cliente: ${contexto.nomeCliente}`);
 
       const response = await axios.post(
         this.apiUrl,
@@ -58,7 +64,8 @@ export class AIService {
           headers: {
             'Authorization': `Bearer ${env.AI_API_KEY}`,
             'Content-Type': 'application/json',
-          }
+          },
+          timeout: 15000,
         }
       );
 
@@ -69,29 +76,24 @@ export class AIService {
         response.data;
 
       if (!conteudoBruto) {
-        console.error('Resposta da Cloudflare veio vazia:', response.data);
+        logger.error('Resposta da Cloudflare veio vazia', response.data);
         throw new Error('A API retornou um resultado vazio.');
       }
 
       const resultado = this.parseJSONResponse<AIClassificationResponse>(conteudoBruto);
 
-      console.log(`[AI] Classificação concluída: ${resultado.departamentoIdentificado}`);
+      logger.info(`Classificação concluída: ${resultado.departamentoIdentificado}`);
       return resultado;
 
     } catch (error: any) {
-      console.error('[AI] Erro na classificação da IA:', error?.response?.data || error.message);
+      logger.error('Erro na classificação da IA', error?.response?.data || error);
       throw new Error('Falha ao processar o atendimento com a Inteligência Artificial.');
     }
   }
 
-  /**
-   * Monta o system prompt completo a partir do JSON de configuração,
-   * preenchendo as variáveis de contexto e anexando workflows + exemplos.
-   */
   private montarPromptSistema(contexto: ClienteContexto): string {
     const partes: string[] = [];
 
-    // 1) Template base com os placeholders substituídos
     let template = this.config.system_prompt_template;
     template = template.replace(/\{\{nome_cliente\}\}/g, contexto.nomeCliente);
     template = template.replace(/\{\{id_cliente_ixc\}\}/g, contexto.idClienteIxc || 'não identificado');
@@ -101,21 +103,17 @@ export class AIService {
     template = template.replace(/\{\{faturas_abertas_count\}\}/g, String(contexto.faturasAbertasCount ?? 0));
     partes.push(template);
 
-    // 2) Workflows — cada um vira uma seção de texto pro modelo seguir
     partes.push('\n--- WORKFLOWS DE ATENDIMENTO ---');
     for (const [chave, workflow] of Object.entries(this.config.workflows)) {
       partes.push(this.formatarWorkflow(chave, workflow));
     }
 
-    // 3) Tools disponíveis — pra IA saber o que pode solicitar
     partes.push('\n--- FERRAMENTAS DISPONÍVEIS ---');
     partes.push(this.formatarTools(this.config.tools_schema));
 
-    // 4) Exemplos de conversa (few-shot) — ajuda a IA a acertar o formato
     partes.push('\n--- EXEMPLOS DE CONVERSA ---');
     partes.push(this.formatarExemplos(this.config.few_shot_examples));
 
-    // 5) Instrução de formato de resposta
     partes.push(this.gerarInstrucaoFormatoResposta());
 
     return partes.join('\n');
@@ -240,7 +238,6 @@ Regras do JSON:
   }
 
   private parseJSONResponse<T>(raw: any): T {
-    // Se já veio como objeto direto da API, tenta usar
     if (typeof raw === 'object' && raw !== null) {
       if ('mensagemParaCliente' in raw || 'departamentoIdentificado' in raw) {
         return raw as T;
@@ -254,12 +251,10 @@ Regras do JSON:
       return raw as T;
     }
 
-    // Converte pra string se veio algo inesperado
     if (typeof raw !== 'string') {
       raw = String(raw || '');
     }
 
-    // Limpa tags de pensamento (<thought>) e blocos de markdown que o modelo às vezes retorna
     let clean = raw.replace(/<thought>[\s\S]*?<\/thought>/gi, '').trim();
     clean = clean.replace(/```json/gi, '').replace(/```/g, '').trim();
 
@@ -271,7 +266,6 @@ Regras do JSON:
     }
 
     let jsonStr = clean.substring(firstBrace, lastBrace + 1);
-    // Remove trailing commas que alguns modelos geram
     jsonStr = jsonStr.replace(/,\s*([\]}])/g, '$1');
 
     return JSON.parse(jsonStr) as T;

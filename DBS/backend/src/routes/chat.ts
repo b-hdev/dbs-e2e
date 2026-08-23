@@ -1,0 +1,120 @@
+import type { FastifyInstance } from 'fastify';
+import { z } from 'zod';
+import { aiService } from '../services/AIService.ts';
+import type { ClienteContexto, AIChatMessage } from '../services/AIService.ts';
+import { sessionManager } from '../services/session-manager.ts';
+import { executarTool } from '../services/tool-executor.ts';
+import { getClienteByCpfCnpj, getBoletosByClienteId, getContratosCliente } from '../services/ixc-get-client.services.ts';
+import { NotFoundError, BadRequestError } from '../errors/base-errors.ts';
+
+export async function chatRoute(app: FastifyInstance) {
+  app.post(
+    '/api/chat',
+    {
+      schema: {
+        body: z.object({
+          cpfCnpj: z.string().min(11, 'CPF ou CNPJ deve ter no mínimo 11 caracteres'),
+          mensagem: z.string().min(1, 'Mensagem não pode estar vazia'),
+          sessionId: z.string().optional(),
+        }),
+      },
+    },
+    async (request, reply) => {
+      const { cpfCnpj, mensagem, sessionId } = request.body as {
+        cpfCnpj: string;
+        mensagem: string;
+        sessionId?: string;
+      };
+
+      try {
+        // 1) Recupera ou cria sessão
+        let session = sessionId ? sessionManager.buscar(sessionId) : null;
+
+        if (!session) {
+          // Precisa identificar o cliente na IXC pra criar a sessão
+          const cliente = await getClienteByCpfCnpj(cpfCnpj);
+
+          if (!cliente) {
+            return reply.status(404).send({
+              sucesso: false,
+              mensagem: 'Cliente não encontrado na base da IXC.',
+            });
+          }
+
+          // Busca dados complementares pra enriquecer o contexto
+          const contratos = await getContratosCliente(cliente.id);
+          const boletos = await getBoletosByClienteId(cliente.id);
+
+          const contexto: ClienteContexto = {
+            nomeCliente: cliente.razao,
+            idClienteIxc: cliente.id,
+            cpfCnpj: cliente.cnpj_cpf,
+            statusContrato: contratos[0]?.status || cliente.status || 'desconhecido',
+            planoAtual: contratos[0]?.plano || 'não informado',
+            faturasAbertasCount: boletos.length,
+          };
+
+          session = sessionManager.criar(cliente.id, contexto);
+        }
+
+        // 2) Adiciona mensagem do usuário ao histórico
+        sessionManager.adicionarMensagem(session.id, 'user', mensagem);
+
+        // 3) Chama a IA com o histórico completo da conversa
+        const historico = session.mensagens.slice(0, -1); // Tudo menos a última (que será enviada como mensagem atual)
+        const resultado = await aiService.classificarAtendimento(
+          session.contexto,
+          mensagem,
+          historico
+        );
+
+        // 4) Se a IA solicitou uma tool, executa
+        let toolResult = null;
+        if (resultado.toolCall && resultado.requerAcaoDoSistema) {
+          toolResult = await executarTool(resultado.toolCall);
+
+          // Se a tool retornou dados (ex: boletos), enriquece a mensagem
+          if (toolResult.sucesso && toolResult.mensagemFormatada) {
+            resultado.mensagemParaCliente += `\n\n${toolResult.mensagemFormatada}`;
+          }
+        }
+
+        // 5) Atualiza sessão com resposta da IA
+        sessionManager.adicionarMensagem(session.id, 'assistant', resultado.mensagemParaCliente);
+        sessionManager.atualizarDepartamento(session.id, resultado.departamentoIdentificado);
+
+        // 6) Monta resposta pro mobile
+        return reply.status(200).send({
+          sucesso: true,
+          sessionId: session.id,
+          resposta: {
+            mensagem: resultado.mensagemParaCliente,
+            departamento: resultado.departamentoIdentificado,
+            prioridade: resultado.prioridade || 'media',
+            resumo: resultado.resumoAtendimento || null,
+            requerAcao: resultado.requerAcaoDoSistema,
+          },
+          toolResult: toolResult
+            ? {
+                tool: resultado.toolCall?.name,
+                sucesso: toolResult.sucesso,
+                dados: toolResult.dados || null,
+              }
+            : null,
+          cliente: {
+            nome: session.contexto.nomeCliente,
+            plano: session.contexto.planoAtual,
+            status: session.contexto.statusContrato,
+          },
+        });
+
+      } catch (error: any) {
+        app.log.error('Erro na rota de chat:', error);
+        return reply.status(500).send({
+          sucesso: false,
+          mensagem: 'Erro interno ao processar o atendimento.',
+        });
+      }
+    }
+  );
+}

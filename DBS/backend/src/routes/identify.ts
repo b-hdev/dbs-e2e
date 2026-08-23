@@ -1,6 +1,10 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { getClienteByCpfCnpj } from '../services/ixc-get-client.services.ts';
+import {
+  getClienteByCpfCnpj,
+  getContratosCliente,
+  getBoletosByClienteId,
+} from '../services/ixc-get-client.services.ts';
 
 export interface IIdentificar {
   cpfCnpj: string;
@@ -25,23 +29,34 @@ export async function identifyRoute(app: FastifyInstance) {
         if (!cliente) {
           return reply.status(404).send({
             sucesso: false,
-            mensagem: 'Cliente não encontrado na base da IXC.'
+            mensagem: 'Cliente não encontrado na base da IXC.',
           });
         }
+
+        // Busca dados complementares em paralelo
+        const [contratos, boletos] = await Promise.all([
+          getContratosCliente(cliente.id),
+          getBoletosByClienteId(cliente.id),
+        ]);
+
+        const contratoPrincipal = contratos[0];
 
         return reply.status(200).send({
           sucesso: true,
           cliente: {
             id: cliente.id,
             nome: cliente.razao,
-          }
+            cpfCnpj: cliente.cnpj_cpf,
+            statusContrato: contratoPrincipal?.status || cliente.status || 'Ativo',
+            planoAtual: contratoPrincipal?.plano || 'Plano Fibra Padrão',
+            faturasAbertasCount: boletos.length,
+          },
         });
-
       } catch (error) {
         app.log.error('Erro na rota de identificação:', error);
         return reply.status(500).send({
           sucesso: false,
-          mensagem: 'Erro interno ao consultar o servidor da IXC.'
+          mensagem: 'Erro interno ao consultar o servidor da IXC.',
         });
       }
     }

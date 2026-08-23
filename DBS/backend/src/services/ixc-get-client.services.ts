@@ -1,8 +1,36 @@
 import axios from 'axios';
-import { env } from '../../env/index.ts';
+import { env } from '../env/index.ts';
+import { Logger } from '../utils/logger.ts';
+
+const logger = new Logger(undefined, 'ixc-service');
+
+// Tipagem dos dados retornados pela API IXC
+export interface IXCCliente {
+  id: string;
+  razao: string;
+  cnpj_cpf: string;
+  status: string;
+  status_internet: string;
+  contrato: string;
+  plano: string;
+  [key: string]: unknown; // campos adicionais dinâmicos da IXC
+}
+
+export interface IXCBoleto {
+  id: string;
+  id_cliente: string;
+  data_vencimento: string;
+  valor: string;
+  status: string;
+  linha_digitavel?: string;
+  gateway_link?: string;
+  nosso_numero?: string;
+  [key: string]: unknown;
+}
 
 const ixcApi = axios.create({
   baseURL: env.IXC_API_URL,
+  timeout: 15000,
 
   auth: {
     username: env.IXC_API_USER,
@@ -16,7 +44,7 @@ const ixcApi = axios.create({
 });
 
 
-export async function getClienteByCpfCnpj(cpfCnpj: string) {
+export async function getClienteByCpfCnpj(cpfCnpj: string): Promise<IXCCliente | null> {
   try {
     const gridParam = JSON.stringify([
       {
@@ -39,15 +67,15 @@ export async function getClienteByCpfCnpj(cpfCnpj: string) {
       return null;
     }
 
-    return clientes[0];
+    return clientes[0] as IXCCliente;
 
   } catch (error) {
-    console.error('❌ Erro ao consultar cliente na IXC:', error);
+    logger.error('Erro ao consultar cliente na IXC', error);
     throw new Error('Falha na comunicação com a API da IXC.');
   }
 }
 
-export async function getBoletosByClienteId(clienteId: string) {
+export async function getBoletosByClienteId(clienteId: string): Promise<IXCBoleto[]> {
   try {
     const gridParam = JSON.stringify([
       { TB: 'fn_areceber.id_cliente', OP: '=', P: clienteId },
@@ -58,9 +86,27 @@ export async function getBoletosByClienteId(clienteId: string) {
 
     const response = await ixcApi.post('/fn_areceber', payload);
 
+    return (response.data.registros || []) as IXCBoleto[];
+  } catch (error) {
+    logger.error('Erro ao buscar boletos na IXC', error);
+    throw new Error('Falha na comunicação com o sistema financeiro.');
+  }
+}
+
+export async function getContratosCliente(clienteId: string) {
+  try {
+    const gridParam = JSON.stringify([
+      { TB: 'cliente_contrato.id_cliente', OP: '=', P: clienteId },
+      { TB: 'cliente_contrato.status', OP: '=', P: 'A' }
+    ]);
+
+    const payload = { grid_param: gridParam };
+
+    const response = await ixcApi.post('/cliente_contrato', payload);
+
     return response.data.registros || [];
   } catch (error) {
-    console.error('❌ Erro ao buscar boletos na IXC:', error);
-    throw new Error('Falha na comunicação com o sistema financeiro.');
+    logger.error('Erro ao buscar contratos na IXC', error);
+    return [];
   }
 }

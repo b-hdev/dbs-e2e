@@ -1,0 +1,16 @@
+version: '3.8'
+
+services:
+  dbs-backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: dbs-telecom-api
+    restart: unless-stopped
+    ports:
+      - "3333:3333"
+    env_file:
+      - ./backend/.env
+    environment:
+      - PORT=3333
+      - NODE_ENV=production
