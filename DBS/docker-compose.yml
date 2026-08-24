@@ -1,16 +1,53 @@
-version: '3.8'
+x-logging: &default-logging
+  driver: "json-file"
+  options:
+    max-size: "5m"
+    max-file: "3"
 
 services:
-  dbs-backend:
+  backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: dbs-telecom-api
+    container_name: dbs-api-backend
     restart: unless-stopped
-    ports:
-      - "3333:3333"
-    env_file:
-      - ./backend/.env
+    logging: *default-logging
+    ulimits:
+      nofile:
+        soft: 65535
+        hard: 65535
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
+    deploy:
+      replicas: 1
     environment:
-      - PORT=3333
-      - NODE_ENV=production
+      NODE_ENV: production
+      PORT: 3333
+      TZ: America/Sao_Paulo
+      # IXC Telecom & AI
+      IXC_API_URL: "${IXC_API_URL}"
+      IXC_API_TOKEN: "${IXC_API_TOKEN}"
+      IXC_API_USER: "${IXC_API_USER}"
+      AI_API_KEY: "${AI_API_KEY}"
+      AI_MODEL: "${AI_MODEL}"
+      AI_URL_WORKER: "${AI_URL_WORKER}"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3333/health/live"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.dbs-backend.rule=Host(`api-dbs.ospct.tech`)"
+      - "traefik.http.routers.dbs-backend.entrypoints=web"
+      - "traefik.http.services.dbs-backend.loadbalancer.server.port=3333"
+      # Configuração de middleware e compressão compatível com Traefik v3
+      - "traefik.http.middlewares.compress-res.compress=true"
+      - "traefik.http.routers.dbs-backend.middlewares=compress-res@docker"
+    networks:
+      - ct-network
+
+networks:
+  ct-network:
+    external: true

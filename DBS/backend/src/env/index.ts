@@ -1,22 +1,20 @@
-import { z } from "zod";
+import { z } from 'zod';
 
 const envSchema = z.object({
   PORT: z.coerce.number().default(3333),
-
-  IXC_API_URL: z.url(),
+  IXC_API_URL: z.string().default('https://demo.ixcsoft.com.br/webservice/v1'),
   IXC_API_TOKEN: z.string(),
   IXC_API_USER: z.string(),
-
   AI_API_KEY: z.string(),
-  AI_MODEL: z.string().default("qwen3-30b-a3b-fp8"),
-  AI_URL_WORKER: z.url(),
+  AI_MODEL: z.string().default('qwen3-30b-a3b-fp8'),
+  AI_URL_WORKER: z.string(),
 });
 
 const _env = envSchema.safeParse(process.env);
 
-if (_env.success === false) {
-  console.error("❌ Invalid environment variables:", _env.error.format());
-  throw new Error("Invalid environment variables.");
+if (!_env.success) {
+  console.error('Invalid or missing environment variables:', _env.error.format());
+  throw new Error('Invalid environment variables.');
 }
 
 export const env = _env.data;

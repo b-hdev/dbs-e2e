@@ -2,7 +2,17 @@ import axios from 'axios';
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 
-const getApiBaseUrl = () => {
+const PRODUCTION_API_URL = 'https://api-dbs.ospct.tech';
+
+const getApiBaseUrl = (): string => {
+  if (process.env.EXPO_PUBLIC_API_URL) {
+    return process.env.EXPO_PUBLIC_API_URL.replace(/\/+$/, '');
+  }
+
+  if (!__DEV__) {
+    return PRODUCTION_API_URL;
+  }
+
   if (Platform.OS === 'web') {
     return 'http://localhost:3333';
   }
@@ -18,7 +28,6 @@ const getApiBaseUrl = () => {
   if (Platform.OS === 'android') {
     return 'http://10.0.2.2:3333';
   }
-
   return 'http://localhost:3333';
 };
 

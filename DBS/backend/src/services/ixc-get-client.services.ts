@@ -46,17 +46,19 @@ const ixcApi = axios.create({
 
 export async function getClienteByCpfCnpj(cpfCnpj: string): Promise<IXCCliente | null> {
   try {
+    // Sanitiza o documento mantendo apenas caracteres alfanuméricos e pontuações válidas
+    const docLimpo = cpfCnpj.trim().replace(/[^A-Za-z0-9.\-\/]/g, '');
+
     const gridParam = JSON.stringify([
       {
         TB: 'cliente.cnpj_cpf',
         OP: '=',
-        P: cpfCnpj
-      }
+        P: docLimpo,
+      },
     ]);
 
-
     const payload = {
-      grid_param: gridParam
+      grid_param: gridParam,
     };
 
     const response = await ixcApi.post('/cliente', payload);
@@ -68,10 +70,9 @@ export async function getClienteByCpfCnpj(cpfCnpj: string): Promise<IXCCliente |
     }
 
     return clientes[0] as IXCCliente;
-
   } catch (error) {
-    logger.error('Erro ao consultar cliente na IXC', error);
-    throw new Error('Falha na comunicação com a API da IXC.');
+    logger.error('Error querying client in IXC API', error);
+    throw new Error('Failed to communicate with IXC API.');
   }
 }
 
@@ -88,8 +89,8 @@ export async function getBoletosByClienteId(clienteId: string): Promise<IXCBolet
 
     return (response.data.registros || []) as IXCBoleto[];
   } catch (error) {
-    logger.error('Erro ao buscar boletos na IXC', error);
-    throw new Error('Falha na comunicação com o sistema financeiro.');
+    logger.error('Error fetching invoices in IXC API', error);
+    throw new Error('Failed to communicate with billing system.');
   }
 }
 
@@ -106,7 +107,7 @@ export async function getContratosCliente(clienteId: string) {
 
     return response.data.registros || [];
   } catch (error) {
-    logger.error('Erro ao buscar contratos na IXC', error);
+    logger.error('Error fetching contracts in IXC API', error);
     return [];
   }
 }

@@ -83,7 +83,7 @@ class SessionManager {
     }
 
     if (removidas > 0) {
-      logger.info(`${removidas} sessão(ões) expirada(s) removida(s)`);
+      logger.info(`Cleaned up ${removidas} expired session(s)`);
     }
   }
 

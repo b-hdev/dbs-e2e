@@ -9,10 +9,12 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
-  Clipboard,
   Alert,
+  Animated,
+  Keyboard,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import * as Clipboard from 'expo-clipboard';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams } from 'expo-router';
 import { Colors, Spacing } from '@/constants/theme';
 import { clientService, type ChatResponse } from '@/services/api';
@@ -27,6 +29,7 @@ interface Message {
 }
 
 export default function ChatScreen() {
+  const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{
     clienteId?: string;
     nomeCliente?: string;
@@ -41,15 +44,37 @@ export default function ChatScreen() {
   const [loading, setLoading] = useState(false);
   const [sessionId, setSessionId] = useState<string | undefined>();
   const [activeDepartamento, setActiveDepartamento] = useState<string | null>(null);
+  const activeDepartamentoRef = useRef<string | null>(null);
+  const protocolo = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(new Date()).replace(/\D/g, '') + new Date().getMilliseconds().toString().slice(-1);
+
+
+  const [transferAlert, setTransferAlert] = useState<{
+    departamento: string;
+    deptLabel: string;
+  } | null>(null);
+  const alertAnim = useRef(new Animated.Value(0)).current;
+
+  const [copiedText, setCopiedText] = useState<string | null>(null);
 
   const flatListRef = useRef<FlatList>(null);
+
+  useEffect(() => {
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const sub = Keyboard.addListener(showEvent, () => {
+      setTimeout(() => {
+        flatListRef.current?.scrollToEnd({ animated: true });
+      }, 100);
+    });
+    return () => sub.remove();
+  }, []);
 
   useEffect(() => {
     const nome = params.nomeCliente || 'Assinante';
     const initialGreeting: Message = {
       id: 'greeting-1',
       role: 'assistant',
-      content: `Olá, ${nome}! Sou o assistente virtual da DBS TELECOM. Como posso ajudar você hoje?`,
+      content: `Olá, ${nome}! Sou o assistente virtual da DBS TELECOM. Como posso ajudar você hoje? 
+Esse atendimento gerou o seguinte protocolo: ${protocolo}`,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     };
 
@@ -83,8 +108,46 @@ export default function ChatScreen() {
           setSessionId(response.sessionId);
         }
 
-        if (response.resposta.departamento && response.resposta.departamento !== 'INDEFINIDO') {
-          setActiveDepartamento(response.resposta.departamento);
+        const newDept = response.resposta.departamento;
+        const isTransfer =
+          newDept &&
+          newDept !== 'INDEFINIDO' &&
+          newDept !== activeDepartamentoRef.current;
+
+        if (isTransfer) {
+          const deptLabels: Record<string, string> = {
+            SUPORTE: 'Suporte Técnico',
+            FINANCEIRO: 'Financeiro',
+            COMERCIAL: 'Comercial',
+          };
+          const deptFormatado = deptLabels[newDept] || newDept;
+
+          setActiveDepartamento(newDept);
+          activeDepartamentoRef.current = newDept;
+
+          setTransferAlert({
+            departamento: newDept,
+            deptLabel: deptFormatado,
+          });
+
+          Animated.timing(alertAnim, {
+            toValue: 1,
+            duration: 250,
+            useNativeDriver: Platform.OS !== 'web',
+          }).start();
+
+          await new Promise((resolve) => setTimeout(resolve, 1500));
+
+          Animated.timing(alertAnim, {
+            toValue: 0,
+            duration: 250,
+            useNativeDriver: Platform.OS !== 'web',
+          }).start(() => {
+            setTransferAlert(null);
+          });
+        } else if (newDept && newDept !== 'INDEFINIDO') {
+          setActiveDepartamento(newDept);
+          activeDepartamentoRef.current = newDept;
         }
 
         const aiMessage: Message = {
@@ -111,9 +174,16 @@ export default function ChatScreen() {
     }
   };
 
-  const handleCopyText = (text: string) => {
-    Clipboard.setString(text);
-    Alert.alert('Copiado!', 'Código copiado com sucesso.');
+  const handleCopyText = async (text: string) => {
+    try {
+      await Clipboard.setStringAsync(text);
+      setCopiedText(text);
+      setTimeout(() => {
+        setCopiedText((current) => (current === text ? null : current));
+      }, 2500);
+    } catch (err) {
+      console.error('Erro ao copiar código:', err);
+    }
   };
 
   const renderMessageItem = ({ item }: { item: Message }) => {
@@ -141,25 +211,38 @@ export default function ChatScreen() {
 
           {item.toolResult?.dados && Array.isArray(item.toolResult.dados) && (
             <View style={styles.faturasContainer}>
-              {item.toolResult.dados.map((boleto: any, index: number) => (
-                <View key={index} style={styles.boletoCard}>
-                  <View style={styles.boletoHeader}>
-                    <Text style={styles.boletoTitle}>📄 Fatura #{boleto.id || index + 1}</Text>
-                    <Text style={styles.boletoValor}>R$ {boleto.valor || '0,00'}</Text>
-                  </View>
-                  <Text style={styles.boletoVenc}>Vencimento: {boleto.data_vencimento || 'A Vencer'}</Text>
+              {item.toolResult.dados.map((boleto: any, index: number) => {
+                const isCopied = copiedText === boleto.linha_digitavel;
+                return (
+                  <View key={index} style={styles.boletoCard}>
+                    <View style={styles.boletoHeader}>
+                      <Text style={styles.boletoTitle}>📄 Fatura #{boleto.id || index + 1}</Text>
+                      <Text style={styles.boletoValor}>R$ {boleto.valor || '0,00'}</Text>
+                    </View>
+                    <Text style={styles.boletoVenc}>Vencimento: {boleto.data_vencimento || 'A Vencer'}</Text>
 
-                  {boleto.linha_digitavel && (
-                    <TouchableOpacity
-                      style={styles.copyButton}
-                      onPress={() => handleCopyText(boleto.linha_digitavel)}
-                      activeOpacity={0.8}
-                    >
-                      <Text style={styles.copyButtonText}>📋 Copiar Linha Digitável</Text>
-                    </TouchableOpacity>
-                  )}
-                </View>
-              ))}
+                    {boleto.linha_digitavel && (
+                      <TouchableOpacity
+                        style={[
+                          styles.copyButton,
+                          isCopied && styles.copyButtonSuccess,
+                        ]}
+                        onPress={() => handleCopyText(boleto.linha_digitavel)}
+                        activeOpacity={0.8}
+                      >
+                        <Text
+                          style={[
+                            styles.copyButtonText,
+                            isCopied && styles.copyButtonSuccessText,
+                          ]}
+                        >
+                          {isCopied ? '✅ Linha Digitável Copiada!' : '📋 Copiar Linha Digitável'}
+                        </Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                );
+              })}
             </View>
           )}
 
@@ -172,7 +255,11 @@ export default function ChatScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <KeyboardAvoidingView
+      behavior="padding"
+      style={styles.container}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 80}
+    >
       <View style={styles.contextHeader}>
         <View style={styles.clientInfo}>
           <Text style={styles.clientName}>{params.nomeCliente || 'Assinante DBS'}</Text>
@@ -219,53 +306,89 @@ export default function ChatScreen() {
         </TouchableOpacity>
       </View>
 
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        style={styles.chatContainer}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
-      >
-        <FlatList
-          ref={flatListRef}
-          data={messages}
-          keyExtractor={(item) => item.id}
-          renderItem={renderMessageItem}
-          contentContainerStyle={styles.messagesList}
-          onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
-        />
-
-        {loading && (
-          <View style={styles.typingContainer}>
-            <ActivityIndicator size="small" color={Colors.primary} />
-            <Text style={styles.typingText}>DBS Assistente está digitando...</Text>
+      {transferAlert && (
+        <Animated.View
+          style={[
+            styles.transferToast,
+            {
+              opacity: alertAnim,
+              transform: [
+                {
+                  translateY: alertAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [-20, 0],
+                  }),
+                },
+              ],
+              backgroundColor:
+                (Colors.departamentos as any)[transferAlert.departamento] || Colors.primary,
+            },
+          ]}
+        >
+          <ActivityIndicator size="small" color="#FFFFFF" style={styles.toastSpinner} />
+          <View style={styles.toastTextContainer}>
+            <Text style={styles.transferToastTitle}>Transferindo atendimento...</Text>
+            <Text style={styles.transferToastDept}>{transferAlert.deptLabel}</Text>
           </View>
-        )}
+        </Animated.View>
+      )}
 
-        <View style={styles.inputBar}>
-          <TextInput
-            style={styles.textInput}
-            placeholder="Digite sua mensagem..."
-            placeholderTextColor={Colors.textSecondary}
-            value={inputText}
-            onChangeText={setInputText}
-            multiline
-            maxLength={500}
-          />
-          <TouchableOpacity
-            style={[styles.sendButton, (!inputText.trim() || loading) && styles.sendButtonDisabled]}
-            onPress={() => handleSendMessage()}
-            disabled={!inputText.trim() || loading}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.sendButtonIcon}>➤</Text>
-          </TouchableOpacity>
+      <FlatList
+        ref={flatListRef}
+        data={messages}
+        keyExtractor={(item) => item.id}
+        renderItem={renderMessageItem}
+        contentContainerStyle={styles.messagesList}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="interactive"
+        onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
+      />
+
+      {loading && (
+        <View style={styles.typingContainer}>
+          <ActivityIndicator size="small" color={Colors.primary} />
+          <Text style={styles.typingText}>DBS Assistente está digitando...</Text>
         </View>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+      )}
+
+      <View style={[styles.inputBar, { paddingBottom: Math.max(Spacing.sm, insets.bottom) }]}>
+        <TextInput
+          style={styles.textInput}
+          placeholder="Digite sua mensagem..."
+          placeholderTextColor={Colors.textSecondary}
+          value={inputText}
+          onChangeText={setInputText}
+          returnKeyType="send"
+          onSubmitEditing={() => handleSendMessage()}
+          blurOnSubmit={false}
+          onFocus={() => {
+            setTimeout(() => {
+              flatListRef.current?.scrollToEnd({ animated: true });
+            }, 150);
+          }}
+          onKeyPress={(e: any) => {
+            if (Platform.OS === 'web' && e.nativeEvent?.key === 'Enter' && !e.nativeEvent?.shiftKey) {
+              e.preventDefault?.();
+              handleSendMessage();
+            }
+          }}
+          maxLength={500}
+        />
+        <TouchableOpacity
+          style={[styles.sendButton, (!inputText.trim() || loading) && styles.sendButtonDisabled]}
+          onPress={() => handleSendMessage()}
+          disabled={!inputText.trim() || loading}
+          activeOpacity={0.8}
+        >
+          <Text style={styles.sendButtonIcon}>➤</Text>
+        </TouchableOpacity>
+      </View>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
+  container: {
     flex: 1,
     backgroundColor: Colors.background,
   },
@@ -449,10 +572,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 4,
   },
+  copyButtonSuccess: {
+    backgroundColor: '#DCFCE7',
+  },
   copyButtonText: {
     color: Colors.primary,
     fontSize: 11,
     fontWeight: '700',
+  },
+  copyButtonSuccessText: {
+    color: '#15803D',
   },
   typingContainer: {
     flexDirection: 'row',
@@ -500,5 +629,37 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  transferToast: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    zIndex: 999,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    borderRadius: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 8,
+  },
+  toastSpinner: {
+    marginRight: 8,
+  },
+  toastTextContainer: {
+    flexDirection: 'column',
+  },
+  transferToastTitle: {
+    color: 'rgba(255, 255, 255, 0.9)',
+    fontSize: 10,
+    fontWeight: '600',
+  },
+  transferToastDept: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '800',
   },
 });

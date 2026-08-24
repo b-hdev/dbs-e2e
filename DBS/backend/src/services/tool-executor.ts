@@ -11,9 +11,8 @@ export interface ToolResult {
   erro?: string;
 }
 
-type ToolHandler = (args: Record<string, string>) => Promise<ToolResult>;
+type ToolHandler = (args: Record<string, string>, clienteIdContexto?: string) => Promise<ToolResult>;
 
-// Registry de handlers — cada tool tem sua função de execução
 const toolHandlers: Record<string, ToolHandler> = {
   consultar_faturas_ixc: executarConsultaFaturas,
   encaminhar_departamento: executarEncaminhamento,
@@ -21,10 +20,13 @@ const toolHandlers: Record<string, ToolHandler> = {
 };
 
 /**
- * Executa uma toolCall retornada pela IA.
- * Recebe o nome da tool e os argumentos, retorna o resultado formatado.
+ * Executa uma toolCall retornada pela IA garantindo segurança contra IDOR.
+ * O clienteIdContexto (proveniente da sessão autenticada) tem precedência sobre qualquer ID arbitrário da IA.
  */
-export async function executarTool(toolCall: AIToolCall): Promise<ToolResult> {
+export async function executarTool(
+  toolCall: AIToolCall,
+  clienteIdContexto?: string
+): Promise<ToolResult> {
   const handler = toolHandlers[toolCall.name];
 
   if (!handler) {
@@ -36,8 +38,11 @@ export async function executarTool(toolCall: AIToolCall): Promise<ToolResult> {
   }
 
   try {
-    logger.info(`Executando tool: ${toolCall.name}`, toolCall.arguments);
-    const resultado = await handler(toolCall.arguments);
+    logger.info(`Executando tool: ${toolCall.name}`, {
+      args: toolCall.arguments,
+      clienteIdContexto,
+    });
+    const resultado = await handler(toolCall.arguments, clienteIdContexto);
     logger.info(`Tool ${toolCall.name} concluída: ${resultado.sucesso ? 'OK' : 'ERRO'}`);
     return resultado;
   } catch (error: any) {
@@ -53,11 +58,15 @@ export async function executarTool(toolCall: AIToolCall): Promise<ToolResult> {
 // HANDLERS DAS TOOLS
 // ===========================
 
-async function executarConsultaFaturas(args: Record<string, string>): Promise<ToolResult> {
-  const clienteId = args.cliente_id;
+async function executarConsultaFaturas(
+  args: Record<string, string>,
+  clienteIdContexto?: string
+): Promise<ToolResult> {
+  // Prevenção contra IDOR: utiliza prioritariamente o ID do cliente da sessão autenticada
+  const clienteId = clienteIdContexto || args.cliente_id;
 
   if (!clienteId) {
-    return { sucesso: false, erro: 'ID do cliente não fornecido.' };
+    return { sucesso: false, erro: 'ID do cliente não informado.' };
   }
 
   const boletos = await getBoletosByClienteId(clienteId);
@@ -66,7 +75,7 @@ async function executarConsultaFaturas(args: Record<string, string>): Promise<To
     return {
       sucesso: true,
       dados: [],
-      mensagemFormatada: 'Não foram encontradas faturas em aberto para este cliente.',
+      mensagemFormatada: 'Não foram encontradas faturas em aberto para este contrato.',
     };
   }
 
@@ -79,7 +88,10 @@ async function executarConsultaFaturas(args: Record<string, string>): Promise<To
   };
 }
 
-async function executarEncaminhamento(args: Record<string, string>): Promise<ToolResult> {
+async function executarEncaminhamento(
+  args: Record<string, string>,
+  _clienteIdContexto?: string
+): Promise<ToolResult> {
   const { setor, resumo_atendimento, prioridade } = args;
 
   if (!setor || !resumo_atendimento) {
@@ -95,11 +107,14 @@ async function executarEncaminhamento(args: Record<string, string>): Promise<Too
   };
 }
 
-async function executarVerificacaoStatus(args: Record<string, string>): Promise<ToolResult> {
-  const clienteId = args.cliente_id;
+async function executarVerificacaoStatus(
+  args: Record<string, string>,
+  clienteIdContexto?: string
+): Promise<ToolResult> {
+  const clienteId = clienteIdContexto || args.cliente_id;
 
   if (!clienteId) {
-    return { sucesso: false, erro: 'ID do cliente não fornecido.' };
+    return { sucesso: false, erro: 'ID do cliente não informado.' };
   }
 
   return {

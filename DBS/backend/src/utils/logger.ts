@@ -1,7 +1,6 @@
 import pino from 'pino';
 import pretty from 'pino-pretty';
 
-// Configuração do stream com pino-pretty para logs formatados e coloridos no console
 const prettyStream = pretty({
   colorize: true,
   translateTime: 'SYS:yyyy-mm-dd HH:MM:ss.l',
@@ -9,7 +8,6 @@ const prettyStream = pretty({
   messageFormat: '{msg}',
 });
 
-// Logger raiz do Pino
 export const rootLogger = pino(
   {
     level: process.env.LOG_LEVEL || 'info',
@@ -17,7 +15,6 @@ export const rootLogger = pino(
   prettyStream
 );
 
-// Factory de configuração para o Fastify
 export const createLoggerConfig = () => {
   return {
     level: process.env.LOG_LEVEL || 'info',
@@ -34,9 +31,6 @@ export const LogLevel = {
 
 export type LogLevel = (typeof LogLevel)[keyof typeof LogLevel];
 
-/**
- * Wrapper de Logger compatível com Pino, com suporte a contexto / módulo.
- */
 export class Logger {
   private pinoInstance: pino.Logger;
 

@@ -1,11 +1,10 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { aiService } from '../services/AIService.ts';
-import type { ClienteContexto, AIChatMessage } from '../services/AIService.ts';
+import type { ClienteContexto } from '../services/AIService.ts';
 import { sessionManager } from '../services/session-manager.ts';
 import { executarTool } from '../services/tool-executor.ts';
 import { getClienteByCpfCnpj, getBoletosByClienteId, getContratosCliente } from '../services/ixc-get-client.services.ts';
-import { NotFoundError, BadRequestError } from '../errors/base-errors.ts';
 
 export async function chatRoute(app: FastifyInstance) {
   app.post(
@@ -27,11 +26,9 @@ export async function chatRoute(app: FastifyInstance) {
       };
 
       try {
-        // 1) Recupera ou cria sessão
         let session = sessionId ? sessionManager.buscar(sessionId) : null;
 
         if (!session) {
-          // Precisa identificar o cliente na IXC pra criar a sessão
           const cliente = await getClienteByCpfCnpj(cpfCnpj);
 
           if (!cliente) {
@@ -41,7 +38,6 @@ export async function chatRoute(app: FastifyInstance) {
             });
           }
 
-          // Busca dados complementares pra enriquecer o contexto
           const contratos = await getContratosCliente(cliente.id);
           const boletos = await getBoletosByClienteId(cliente.id);
 
@@ -57,33 +53,30 @@ export async function chatRoute(app: FastifyInstance) {
           session = sessionManager.criar(cliente.id, contexto);
         }
 
-        // 2) Adiciona mensagem do usuário ao histórico
         sessionManager.adicionarMensagem(session.id, 'user', mensagem);
 
-        // 3) Chama a IA com o histórico completo da conversa
-        const historico = session.mensagens.slice(0, -1); // Tudo menos a última (que será enviada como mensagem atual)
+        const historico = session.mensagens.slice(0, -1);
         const resultado = await aiService.classificarAtendimento(
           session.contexto,
           mensagem,
           historico
         );
 
-        // 4) Se a IA solicitou uma tool, executa
+        // Execução de tools com validação estrita de sessão contra IDOR
         let toolResult = null;
         if (resultado.toolCall && resultado.requerAcaoDoSistema) {
-          toolResult = await executarTool(resultado.toolCall);
+          toolResult = await executarTool(resultado.toolCall, session.contexto.idClienteIxc);
 
-          // Se a tool retornou dados (ex: boletos), enriquece a mensagem
           if (toolResult.sucesso && toolResult.mensagemFormatada) {
             resultado.mensagemParaCliente += `\n\n${toolResult.mensagemFormatada}`;
           }
         }
 
-        // 5) Atualiza sessão com resposta da IA
+        // Atualiza sessão com resposta da IA
         sessionManager.adicionarMensagem(session.id, 'assistant', resultado.mensagemParaCliente);
         sessionManager.atualizarDepartamento(session.id, resultado.departamentoIdentificado);
 
-        // 6) Monta resposta pro mobile
+        // Monta resposta pro mobile
         return reply.status(200).send({
           sucesso: true,
           sessionId: session.id,
@@ -96,10 +89,10 @@ export async function chatRoute(app: FastifyInstance) {
           },
           toolResult: toolResult
             ? {
-                tool: resultado.toolCall?.name,
-                sucesso: toolResult.sucesso,
-                dados: toolResult.dados || null,
-              }
+              tool: resultado.toolCall?.name,
+              sucesso: toolResult.sucesso,
+              dados: toolResult.dados || null,
+            }
             : null,
           cliente: {
             nome: session.contexto.nomeCliente,
@@ -109,10 +102,10 @@ export async function chatRoute(app: FastifyInstance) {
         });
 
       } catch (error: any) {
-        app.log.error('Erro na rota de chat:', error);
+        app.log.error(error, 'Error in chat route:');
         return reply.status(500).send({
           sucesso: false,
-          mensagem: 'Erro interno ao processar o atendimento.',
+          mensagem: 'Internal error processing request.',
         });
       }
     }

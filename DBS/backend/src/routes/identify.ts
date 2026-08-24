@@ -33,7 +33,6 @@ export async function identifyRoute(app: FastifyInstance) {
           });
         }
 
-        // Busca dados complementares em paralelo
         const [contratos, boletos] = await Promise.all([
           getContratosCliente(cliente.id),
           getBoletosByClienteId(cliente.id),
@@ -53,10 +52,10 @@ export async function identifyRoute(app: FastifyInstance) {
           },
         });
       } catch (error) {
-        app.log.error('Erro na rota de identificação:', error);
+        app.log.error(error, 'Error in identify route:');
         return reply.status(500).send({
           sucesso: false,
-          mensagem: 'Erro interno ao consultar o servidor da IXC.',
+          mensagem: 'Internal error querying IXC server.',
         });
       }
     }
