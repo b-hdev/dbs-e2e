@@ -62,7 +62,7 @@ export async function chatRoute(app: FastifyInstance) {
           historico
         );
 
-        // Execução de tools com validação estrita de sessão contra IDOR
+        // Passa o ID do cliente da sessão pro executor de tools
         let toolResult = null;
         if (resultado.toolCall && resultado.requerAcaoDoSistema) {
           toolResult = await executarTool(resultado.toolCall, session.contexto.idClienteIxc);

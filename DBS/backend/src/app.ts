@@ -19,13 +19,13 @@ export const app = fastify({ logger: createLoggerConfig() }).withTypeProvider<Zo
 app.setValidatorCompiler(validatorCompiler);
 app.setSerializerCompiler(serializerCompiler);
 
-// Segurança: Cabeçalhos HTTP defensivos (Helmet)
+// Helmet — headers de segurança
 app.register(fastifyHelmet, {
   contentSecurityPolicy: false, // API JSON — desabilitado para evitar bloqueios de assets em clientes externos
   crossOriginEmbedderPolicy: false,
 });
 
-// Segurança: Rate Limiting global contra força bruta / DoS / scraping de CPF na IXC
+// Rate limit global
 app.register(fastifyRateLimit, {
   max: 100,
   timeWindow: '1 minute',
@@ -44,13 +44,13 @@ app.register(cors, {
   allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
 });
 
-// Tratamento centralizado de erros e sanitização
+// Error handler global
 setupErrorHandler(app, {
   serviceName: 'DBS Telecom API',
   enableDetailedErrorLogging: true,
 });
 
-// Registro de rotas
+// Rotas
 app.register(identifyRoute);
 app.register(chatRoute);
 

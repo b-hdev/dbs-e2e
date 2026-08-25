@@ -2,42 +2,34 @@ import { aiService } from '../../src/services/AIService.ts';
 import type { ClienteContexto } from '../../src/services/AIService.ts';
 
 async function rodarTesteIA() {
-  console.log('🤖 Iniciando teste de classificação da Inteligência Artificial...\n');
+  console.log('Iniciando teste de integracao do servico de atendimento...\n');
 
-  // Simula um cliente com contexto completo vindo do IXC
   const contexto: ClienteContexto = {
     nomeCliente: 'Bruno Santos',
     idClienteIxc: '4521',
     cpfCnpj: '123.456.789-00',
     statusContrato: 'Ativo',
-    planoAtual: 'Plano Padrão 500 Mega',
+    planoAtual: 'Plano 500 Mega',
     faturasAbertasCount: 0,
   };
 
-  const mensagemTeste = 'Minha internet caiu, o roteador está com uma luz vermelha acesa e eu preciso trabalhar!';
+  const mensagemTeste = 'Minha internet caiu, o roteador esta com luz vermelha acesa.';
 
   try {
     const resultado = await aiService.classificarAtendimento(contexto, mensagemTeste);
 
-    console.log('\n✅ Classificação Concluída com Sucesso!');
-    console.log('=========================================');
-    console.log('🧠 Departamento:', resultado.departamentoIdentificado);
-    console.log('💬 Mensagem gerada:', resultado.mensagemParaCliente);
-    console.log('⚙️ Ação no sistema:', resultado.requerAcaoDoSistema);
-    console.log('📋 Resumo:', resultado.resumoAtendimento || '(não gerado)');
-    console.log('🔺 Prioridade:', resultado.prioridade || '(não definida)');
+    console.log('Classificacao concluida:');
+    console.log('- Departamento:', resultado.departamentoIdentificado);
+    console.log('- Resposta:', resultado.mensagemParaCliente);
+    console.log('- Requer acao:', resultado.requerAcaoDoSistema);
+    console.log('- Prioridade:', resultado.prioridade);
 
     if (resultado.toolCall) {
-      console.log('🔧 Tool solicitada:', resultado.toolCall.name);
-      console.log('   Argumentos:', JSON.stringify(resultado.toolCall.arguments, null, 2));
-    } else {
-      console.log('🔧 Tool solicitada: nenhuma');
+      console.log('- Tool:', resultado.toolCall.name);
+      console.log('  Args:', resultado.toolCall.arguments);
     }
-
-    console.log('=========================================\n');
-
   } catch (error) {
-    console.error('\n❌ Erro no teste da IA:', error);
+    console.error('Erro no teste:', error);
   }
 }
 

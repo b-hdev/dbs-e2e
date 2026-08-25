@@ -1,4 +1,7 @@
 node_modules
+.expo
+.expo-shared
+dist
 .git
 .vscode
 npm-debug.log

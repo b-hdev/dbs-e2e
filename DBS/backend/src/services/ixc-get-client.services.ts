@@ -46,7 +46,7 @@ const ixcApi = axios.create({
 
 export async function getClienteByCpfCnpj(cpfCnpj: string): Promise<IXCCliente | null> {
   try {
-    // Sanitiza o documento mantendo apenas caracteres alfanuméricos e pontuações válidas
+    // Limpa o documento antes de consultar
     const docLimpo = cpfCnpj.trim().replace(/[^A-Za-z0-9.\-\/]/g, '');
 
     const gridParam = JSON.stringify([

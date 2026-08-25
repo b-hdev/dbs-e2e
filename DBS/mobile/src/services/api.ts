@@ -2,33 +2,26 @@ import axios from 'axios';
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 
-const PRODUCTION_API_URL = 'https://api-dbs.ospct.tech';
+const PRODUCTION_API_URL = process.env.EXPO_PUBLIC_API_URL || '';
 
 const getApiBaseUrl = (): string => {
-  if (process.env.EXPO_PUBLIC_API_URL) {
-    return process.env.EXPO_PUBLIC_API_URL.replace(/\/+$/, '');
-  }
+  // DEV: usa a API local na porta 3333
+  if (process.env.EXPO_PUBLIC_NODE_ENV === 'dev') {
+    if (Platform.OS === 'web') return 'http://localhost:3333';
 
-  if (!__DEV__) {
-    return PRODUCTION_API_URL;
-  }
-
-  if (Platform.OS === 'web') {
+    const hostUri = Constants.expoConfig?.hostUri || (Constants as any).manifest2?.extra?.expoClient?.hostUri;
+    if (hostUri) {
+      const ip = hostUri.split(':')[0];
+      if (ip && ip !== 'localhost' && ip !== '127.0.0.1') {
+        return `http://${ip}:3333`;
+      }
+    }
+    if (Platform.OS === 'android') return 'http://10.0.2.2:3333';
     return 'http://localhost:3333';
   }
 
-  const hostUri = Constants.expoConfig?.hostUri || (Constants as any).manifest2?.extra?.expoClient?.hostUri;
-  if (hostUri) {
-    const ip = hostUri.split(':')[0];
-    if (ip && ip !== 'localhost' && ip !== '127.0.0.1') {
-      return `http://${ip}:3333`;
-    }
-  }
-
-  if (Platform.OS === 'android') {
-    return 'http://10.0.2.2:3333';
-  }
-  return 'http://localhost:3333';
+  // PROD: usa a URL de produção
+  return PRODUCTION_API_URL;
 };
 
 export const API_BASE_URL = getApiBaseUrl();

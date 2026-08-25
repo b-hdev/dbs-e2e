@@ -20,8 +20,8 @@ const toolHandlers: Record<string, ToolHandler> = {
 };
 
 /**
- * Executa uma toolCall retornada pela IA garantindo segurança contra IDOR.
- * O clienteIdContexto (proveniente da sessão autenticada) tem precedência sobre qualquer ID arbitrário da IA.
+ * Executa uma toolCall retornada pela IA.
+ * O clienteIdContexto vem da sessão autenticada e tem prioridade sobre o que a IA enviar.
  */
 export async function executarTool(
   toolCall: AIToolCall,
@@ -62,7 +62,7 @@ async function executarConsultaFaturas(
   args: Record<string, string>,
   clienteIdContexto?: string
 ): Promise<ToolResult> {
-  // Prevenção contra IDOR: utiliza prioritariamente o ID do cliente da sessão autenticada
+  // Usa o ID da sessão, não o que a IA mandar nos args
   const clienteId = clienteIdContexto || args.cliente_id;
 
   if (!clienteId) {
