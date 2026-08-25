@@ -244,3 +244,23 @@ Para compilar e gerar o arquivo `.apk` utilizando os servidores gratuitos do Exp
    ```
    > Aguarde alguns minutos. Ao fim do processo, o terminal fornecerá o link direto para download do arquivo `.apk` pronto para instalar no Android.
 
+---
+
+## 🗺️ Roadmap de Evolução
+
+Funcionalidades planejadas para as próximas versões do sistema:
+
+### Painel de Métricas e Observabilidade
+- **Dashboard em tempo real** para gestores da DBS acompanharem o volume de atendimentos por departamento (Comercial, Suporte, Financeiro).
+- **Mapa de calor regional** de reclamações — quando múltiplos clientes de uma mesma área reportam problemas simultaneamente, o sistema identifica que pode ser uma falha de rede regional e não um problema isolado.
+- **Taxa de resolução no N1** — percentual de atendimentos resolvidos pela triagem automatizada sem necessidade de escalar para um atendente humano.
+- **Indicadores de pico** — horários e dias da semana com maior volume de chamados, permitindo dimensionamento da equipe.
+
+### Histórico de Atendimento
+- **Registro persistente** de todas as conversas em banco de dados, permitindo que o assinante retome um atendimento anterior.
+- **Timeline do cliente** — visualização do histórico completo de interações, chamados abertos e resoluções por assinante.
+
+### Melhorias no Atendimento
+- **Notificações push** para o assinante quando uma manutenção programada ou incidente regional for identificado.
+- **Avaliação de satisfação (NPS)** ao final de cada atendimento.
+- **Escalação inteligente** — priorização automática de atendimentos com base no tempo de contrato e valor do plano do assinante.

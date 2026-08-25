@@ -13,6 +13,7 @@ import { APP_VERSION } from './utils/version.ts';
 import { createLoggerConfig } from './utils/logger.ts';
 import { identifyRoute } from './routes/identify.ts';
 import { chatRoute } from './routes/chat.ts';
+import { sessionManager } from './services/session-manager.ts';
 
 export const app = fastify({ logger: createLoggerConfig() }).withTypeProvider<ZodTypeProvider>();
 
@@ -55,7 +56,12 @@ app.register(identifyRoute);
 app.register(chatRoute);
 
 app.get('/health', async () => {
-  return { status: 'ok', version: APP_VERSION, timestamp: new Date().toISOString() };
+  return {
+    status: 'ok',
+    version: APP_VERSION,
+    timestamp: new Date().toISOString(),
+    atendimentosAtivos: sessionManager.contarAtivas(),
+  };
 });
 
 app.get('/health/live', async () => {
